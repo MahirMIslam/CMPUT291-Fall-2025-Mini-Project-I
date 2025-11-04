@@ -195,6 +195,7 @@ class ECommerceSystem:
             else:
                 print("Invalid choice.")
 
+    # used to paginate various things, like search results and orders
     def paginate_results(self, items, display_func, action_func, page_size=5):
         """Generic pagination handler"""
         if not items:
@@ -222,6 +223,9 @@ class ECommerceSystem:
                 options.append("'n' for next")
             options.append("'s' to select")
             options.append("'b' to go back")
+
+            if display_func == self.display_product_summary:
+                options.append("'e' to edit query")
             
             print(" | ".join(options))
             
@@ -233,6 +237,10 @@ class ECommerceSystem:
                 current_page -= 1
             elif choice == 's':
                 action_func(items)
+            elif choice == 'e' and display_func == self.display_product_summary:
+                # jump to search hack... results on one additional stack entry
+                self.search_products()
+                break
             elif choice == 'b':
                 break
             else:
@@ -245,9 +253,6 @@ class ECommerceSystem:
             print("Please enter a search term.")
             return
         
-        # Split into individual keywords
-        keywords = keywords_input.split()
-        
         # Record search with original query
         try:
             cid = self.get_customer_id()
@@ -258,6 +263,9 @@ class ECommerceSystem:
             self.conn.commit()
         except sqlite3.Error as e:
             print(f"Search recording error: {e}")
+
+        # Split into individual keywords
+        keywords = keywords_input.split()
         
         # Build dynamic query with AND semantics for multiple keywords
         # Each keyword must appear in at least one field (name, descr, or category)
