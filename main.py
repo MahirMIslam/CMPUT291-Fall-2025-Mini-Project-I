@@ -119,7 +119,7 @@ class ECommerceSystem:
     def get_customer_id(self):
         """Get customer ID for current user"""
         try:
-            # Try to find matching customer by uid
+            # Find matching customer by uid
             self.cursor.execute(
                 "SELECT cid FROM customers WHERE uid = ?", (self.current_uid,)
             )
@@ -195,7 +195,7 @@ class ECommerceSystem:
             else:
                 print("Invalid choice.")
 
-    # used to paginate various things, like search results and orders
+    # Used to paginate various things, like search results and orders
     def paginate_results(self, items, display_func, action_func, page_size=5):
         """Generic pagination handler"""
         if not items:
@@ -238,7 +238,7 @@ class ECommerceSystem:
             elif choice == 's':
                 action_func(items)
             elif choice == 'e' and display_func == self.display_product_summary:
-                # jump to search hack... results on one additional stack entry
+                # Jump to search implementation results on one additional stack entry
                 self.search_products()
                 break
             elif choice == 'b':
