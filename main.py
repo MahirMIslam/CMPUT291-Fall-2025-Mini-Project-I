@@ -925,39 +925,19 @@ class ECommerceSystem:
             
             # First, get the count of the 3rd ranked product
             self.cursor.execute("""
-                SELECT COUNT(DISTINCT ol.ono) as order_count
-                FROM products p
-                JOIN orderlines ol ON p.pid = ol.pid
-                GROUP BY p.pid
-                ORDER BY order_count DESC
-                LIMIT 1 OFFSET 2
+                SELECT pid, name, category, order_count
+                FROM (
+                    SELECT p.pid, p.name, p.category, 
+                        COUNT(DISTINCT ol.ono) as order_count,
+                        RANK() OVER (ORDER BY COUNT(DISTINCT ol.ono) DESC) as rank
+                    FROM products p
+                    JOIN orderlines ol ON p.pid = ol.pid
+                    GROUP BY p.pid
+                )
+                WHERE rank <= 3
+                ORDER BY order_count DESC, name
             """)
-            third_place_result = self.cursor.fetchone()
-            
-            if third_place_result:
-                third_place_count = third_place_result['order_count']
-                
-                # Get all products with count >= 3rd place count
-                self.cursor.execute("""
-                    SELECT p.pid, p.name, p.category, COUNT(DISTINCT ol.ono) as order_count
-                    FROM products p
-                    JOIN orderlines ol ON p.pid = ol.pid
-                    GROUP BY p.pid
-                    HAVING order_count >= ?
-                    ORDER BY order_count DESC, p.name
-                """, (third_place_count,))
-                top_orders = self.cursor.fetchall()
-            else:
-                # Less than 3 products with orders, just get all
-                self.cursor.execute("""
-                    SELECT p.pid, p.name, p.category, COUNT(DISTINCT ol.ono) as order_count
-                    FROM products p
-                    JOIN orderlines ol ON p.pid = ol.pid
-                    GROUP BY p.pid
-                    ORDER BY order_count DESC, p.name
-                    LIMIT 3
-                """)
-                top_orders = self.cursor.fetchall()
+            top_orders = self.cursor.fetchall()
             
             if top_orders:
                 for i, p in enumerate(top_orders, 1):
@@ -973,39 +953,19 @@ class ECommerceSystem:
             
             # First, get the count of the 3rd ranked product by views
             self.cursor.execute("""
-                SELECT COUNT(*) as view_count
-                FROM products p
-                JOIN viewedProduct vp ON p.pid = vp.pid
-                GROUP BY p.pid
-                ORDER BY view_count DESC
-                LIMIT 1 OFFSET 2
+                SELECT pid, name, category, view_count
+                FROM (
+                    SELECT p.pid, p.name, p.category, 
+                        COUNT(*) as view_count,
+                        RANK() OVER (ORDER BY COUNT(*) DESC) as rank
+                    FROM products p
+                    JOIN viewedProduct vp ON p.pid = vp.pid
+                    GROUP BY p.pid
+                )
+                WHERE rank <= 3
+                ORDER BY view_count DESC, name
             """)
-            third_place_views = self.cursor.fetchone()
-            
-            if third_place_views:
-                third_place_view_count = third_place_views['view_count']
-                
-                # Get all products with views >= 3rd place count
-                self.cursor.execute("""
-                    SELECT p.pid, p.name, p.category, COUNT(*) as view_count
-                    FROM products p
-                    JOIN viewedProduct vp ON p.pid = vp.pid
-                    GROUP BY p.pid
-                    HAVING view_count >= ?
-                    ORDER BY view_count DESC, p.name
-                """, (third_place_view_count,))
-                top_views = self.cursor.fetchall()
-            else:
-                # Less than 3 products with views, just get all
-                self.cursor.execute("""
-                    SELECT p.pid, p.name, p.category, COUNT(*) as view_count
-                    FROM products p
-                    JOIN viewedProduct vp ON p.pid = vp.pid
-                    GROUP BY p.pid
-                    ORDER BY view_count DESC, p.name
-                    LIMIT 3
-                """)
-                top_views = self.cursor.fetchall()
+            top_views = self.cursor.fetchall()
             
             if top_views:
                 for i, p in enumerate(top_views, 1):
