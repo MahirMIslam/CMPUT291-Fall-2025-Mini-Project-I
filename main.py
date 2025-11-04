@@ -9,7 +9,7 @@ class ECommerceSystem:
         self.conn.execute("PRAGMA foreign_keys = ON")
         self.conn.row_factory = sqlite3.Row  # Access columns by name
         self.cursor = self.conn.cursor()
-        self.current_user = None
+        self.current_uid = None
         self.current_role = None
         self.session_no = None
     
@@ -30,7 +30,7 @@ class ECommerceSystem:
             user = self.cursor.fetchone()
             
             if user:
-                self.current_user = user['uid']
+                self.current_uid = user['uid']
                 self.current_role = user['role']
                 self.start_session()
                 print(f"\nWelcome! Logged in as {self.current_role}.")
@@ -98,6 +98,8 @@ class ECommerceSystem:
             cid = self.get_customer_id()
             
             # Get next session number
+            # sessionNo is a weak key dependent on cid
+            # so we add the next cid of that user
             self.cursor.execute(
                 "SELECT MAX(sessionNo) FROM sessions WHERE cid = ?", (cid,)
             )
@@ -119,14 +121,14 @@ class ECommerceSystem:
         try:
             # Try to find matching customer by uid
             self.cursor.execute(
-                "SELECT cid FROM customers WHERE cid = ?", (self.current_user,)
+                "SELECT cid FROM customers WHERE uid = ?", (self.current_uid,)
             )
             result = self.cursor.fetchone()
             if result:
                 return result['cid']
-            return self.current_user
+            return self.current_uid
         except sqlite3.Error:
-            return self.current_user
+            return self.current_uid
 
     def logout(self):
         """End session and logout"""
@@ -141,7 +143,7 @@ class ECommerceSystem:
         except sqlite3.Error as e:
             print(f"Logout error: {e}")
         
-        self.current_user = None
+        self.current_uid = None
         self.current_role = None
         self.session_no = None
         print("\nLogged out successfully.")
