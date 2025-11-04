@@ -237,34 +237,50 @@ class ECommerceSystem:
                 print("Invalid choice.")
 
     def search_products(self):
-        keyword = input("\nEnter search keyword: ").strip()
+        keywords_input = input("\nEnter search keyword(s): ").strip()
         
-        if not keyword:
+        if not keywords_input:
             print("Please enter a search term.")
             return
         
-        # Record search
+        # Split into individual keywords
+        keywords = keywords_input.split()
+        
+        # Record search with original query
         try:
             cid = self.get_customer_id()
             self.cursor.execute(
                 "INSERT INTO search (cid, sessionNo, ts, query) VALUES (?, ?, ?, ?)",
-                (cid, self.session_no, datetime.now().isoformat(), keyword)
+                (cid, self.session_no, datetime.now().isoformat(), keywords_input)
             )
             self.conn.commit()
         except sqlite3.Error as e:
             print(f"Search recording error: {e}")
         
-        # Search products (case-insensitive) - INCLUDES CATEGORY
-        try:
-            self.cursor.execute(
-                """SELECT pid, name, category, price, stock_count, descr 
-                FROM products 
-                WHERE LOWER(name) LIKE ? 
-                OR LOWER(descr) LIKE ? 
-                OR LOWER(category) LIKE ?
-                ORDER BY name""",
-                (f"%{keyword.lower()}%", f"%{keyword.lower()}%", f"%{keyword.lower()}%")
+        # Build dynamic query with AND semantics for multiple keywords
+        # Each keyword must appear in at least one field (name, descr, or category)
+        conditions = []
+        params = []
+        
+        for keyword in keywords:
+            keyword_lower = f"%{keyword.lower()}%"
+            conditions.append(
+                "(LOWER(name) LIKE ? OR LOWER(descr) LIKE ? OR LOWER(category) LIKE ?)"
             )
+            params.extend([keyword_lower, keyword_lower, keyword_lower])
+        
+        # Combine conditions with AND
+        where_clause = " AND ".join(conditions)
+        
+        query = f"""
+            SELECT pid, name, category, price, stock_count, descr 
+            FROM products 
+            WHERE {where_clause}
+            ORDER BY name
+        """
+        
+        try:
+            self.cursor.execute(query, params)
             results = self.cursor.fetchall()
             
             if not results:
@@ -893,19 +909,45 @@ class ECommerceSystem:
             print("TOP-SELLING PRODUCTS")
             print("="*60)
             
-            # Top 3 by distinct orders
+            # Top 3 by distinct orders (with tie handling)
             print("\nTOP 3 BY NUMBER OF ORDERS:")
             print("-" * 60)
             
+            # First, get the count of the 3rd ranked product
             self.cursor.execute("""
-                SELECT p.pid, p.name, p.category, COUNT(DISTINCT ol.ono) as order_count
+                SELECT COUNT(DISTINCT ol.ono) as order_count
                 FROM products p
                 JOIN orderlines ol ON p.pid = ol.pid
                 GROUP BY p.pid
                 ORDER BY order_count DESC
-                LIMIT 3
+                LIMIT 1 OFFSET 2
             """)
-            top_orders = self.cursor.fetchall()
+            third_place_result = self.cursor.fetchone()
+            
+            if third_place_result:
+                third_place_count = third_place_result['order_count']
+                
+                # Get all products with count >= 3rd place count
+                self.cursor.execute("""
+                    SELECT p.pid, p.name, p.category, COUNT(DISTINCT ol.ono) as order_count
+                    FROM products p
+                    JOIN orderlines ol ON p.pid = ol.pid
+                    GROUP BY p.pid
+                    HAVING order_count >= ?
+                    ORDER BY order_count DESC, p.name
+                """, (third_place_count,))
+                top_orders = self.cursor.fetchall()
+            else:
+                # Less than 3 products with orders, just get all
+                self.cursor.execute("""
+                    SELECT p.pid, p.name, p.category, COUNT(DISTINCT ol.ono) as order_count
+                    FROM products p
+                    JOIN orderlines ol ON p.pid = ol.pid
+                    GROUP BY p.pid
+                    ORDER BY order_count DESC, p.name
+                    LIMIT 3
+                """)
+                top_orders = self.cursor.fetchall()
             
             if top_orders:
                 for i, p in enumerate(top_orders, 1):
@@ -915,19 +957,45 @@ class ECommerceSystem:
             else:
                 print("   No orders yet.\n")
             
-            # Top 3 by views
+            # Top 3 by views (with tie handling)
             print("TOP 3 BY NUMBER OF VIEWS:")
             print("-" * 60)
             
+            # First, get the count of the 3rd ranked product by views
             self.cursor.execute("""
-                SELECT p.pid, p.name, p.category, COUNT(*) as view_count
+                SELECT COUNT(*) as view_count
                 FROM products p
                 JOIN viewedProduct vp ON p.pid = vp.pid
                 GROUP BY p.pid
                 ORDER BY view_count DESC
-                LIMIT 3
+                LIMIT 1 OFFSET 2
             """)
-            top_views = self.cursor.fetchall()
+            third_place_views = self.cursor.fetchone()
+            
+            if third_place_views:
+                third_place_view_count = third_place_views['view_count']
+                
+                # Get all products with views >= 3rd place count
+                self.cursor.execute("""
+                    SELECT p.pid, p.name, p.category, COUNT(*) as view_count
+                    FROM products p
+                    JOIN viewedProduct vp ON p.pid = vp.pid
+                    GROUP BY p.pid
+                    HAVING view_count >= ?
+                    ORDER BY view_count DESC, p.name
+                """, (third_place_view_count,))
+                top_views = self.cursor.fetchall()
+            else:
+                # Less than 3 products with views, just get all
+                self.cursor.execute("""
+                    SELECT p.pid, p.name, p.category, COUNT(*) as view_count
+                    FROM products p
+                    JOIN viewedProduct vp ON p.pid = vp.pid
+                    GROUP BY p.pid
+                    ORDER BY view_count DESC, p.name
+                    LIMIT 3
+                """)
+                top_views = self.cursor.fetchall()
             
             if top_views:
                 for i, p in enumerate(top_views, 1):
