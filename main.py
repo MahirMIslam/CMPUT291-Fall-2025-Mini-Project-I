@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 class ECommerceSystem:
     def __init__(self, db_name):
         self.conn = sqlite3.connect(db_name)
+        self.conn.execute("PRAGMA foreign_keys = ON")
         self.conn.row_factory = sqlite3.Row  # Access columns by name
         self.cursor = self.conn.cursor()
         self.current_user = None
